@@ -469,6 +469,38 @@ body.dark .reminder-strip b { color: #FDE68A; }
 .install-banner__txt { flex: 1; font-size: 13px; font-weight: 600; color: var(--ink); }
 .install-banner__btn { background: var(--grad); color: #fff; font-weight: 800; font-size: 13px; padding: 9px 14px; border-radius: 11px; }
 .install-banner__x { color: var(--ink-3); font-size: 20px; padding: 2px 6px; }
+/* PIN de acesso */
+.pinlock { position: fixed; inset: 0; z-index: 85; background: var(--grad); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; opacity: 0; transition: opacity .25s; }
+.pinlock.show { opacity: 1; }
+.pinlock__back { position: absolute; top: calc(16px + var(--safe-t, 0px)); left: 16px; color: #fff; font-size: 14px; font-weight: 700; background: rgba(255,255,255,.16); border-radius: 12px; padding: 9px 14px; }
+.pin-title { color: #fff; font-size: 22px; font-weight: 800; text-align: center; }
+.pin-sub { color: rgba(255,255,255,.85); font-size: 14px; margin-top: 6px; text-align: center; }
+.pin-dots { display: flex; gap: 16px; margin: 26px 0 8px; }
+.pin-dots.shake { animation: pinshake .4s; }
+.pin-dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); background: transparent; transition: all .15s; }
+.pin-dot.on { background: #fff; border-color: #fff; transform: scale(1.15); }
+.pin-err { color: #fff; font-size: 13px; font-weight: 600; min-height: 18px; margin-bottom: 6px; text-shadow: 0 1px 2px rgba(0,0,0,.15); text-align: center; padding: 0 20px; }
+.pin-pad { display: grid; grid-template-columns: repeat(3, 74px); gap: 16px; margin-top: 6px; }
+.pin-key { height: 74px; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; font-size: 26px; font-weight: 700; display: grid; place-items: center; transition: transform .1s, background .15s; }
+.pin-key:active { transform: scale(.9); background: rgba(255,255,255,.32); }
+.pin-key.blank { background: transparent; pointer-events: none; }
+.pin-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--azul-050); color: var(--azul); font-weight: 700; font-size: 13px; padding: 9px 13px; border-radius: 11px; }
+@keyframes pinshake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
+/* Interesse */
+.interesse-box { background: rgba(37,99,235,.05); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px; margin-bottom: 16px; }
+.interesse-box__q { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 10px; text-align: center; }
+.interesse-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.int-btn { padding: 14px 8px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); font-weight: 700; font-size: 14px; color: var(--ink-2); transition: transform .12s, background .15s, border-color .15s; }
+.int-btn:active { transform: scale(.96); }
+.int-btn.int-sim.on { border-color: #22C55E; background: #DCFCE7; color: #15803D; }
+.int-btn.int-nao.on { border-color: #EF4444; background: #FEE2E2; color: #B91C1C; }
+.int-tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.int-tag--sim { background: #DCFCE7; color: #15803D; }
+.int-tag--nao { background: #FEE2E2; color: #B91C1C; }
+body.dark .int-btn.int-sim.on { background: rgba(34,197,94,.18); color: #4ADE80; }
+body.dark .int-btn.int-nao.on { background: rgba(239,68,68,.18); color: #F87171; }
+body.dark .int-tag--sim { background: rgba(34,197,94,.18); color: #4ADE80; }
+body.dark .int-tag--nao { background: rgba(239,68,68,.18); color: #F87171; }
 </style>
 </head>
 <body>
@@ -562,6 +594,9 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
         "A venda começa com uma boa conversa. Comece a sua.",
         "Foco no cliente certo, no momento certo. Você consegue!",
     ];
+    // PINs de fábrica (bloqueio local desde o 1º acesso; cada corretora pode trocar depois)
+    const DEFAULT_PINS = { 1: "4517", 2: "2839", 3: "7162", 4: "9043" };
+    const interesseLabel = (v) => v === "sim" ? "Tem interesse" : v === "nao" ? "Sem interesse" : "A avaliar";
 
     const $ = (s, r = document) => r.querySelector(s);
     const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -579,12 +614,12 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
             tipo_imovel: "", faixa_preco: "", forma_pagamento: "", observacoes: "",
             origem_lead: "Lista Santo André", data_cadastro: HOJE(),
             ultimo_contato: null, proximo_retorno: null, status: "novo_lead",
-            vip: false, favorito: false,
+            vip: false, favorito: false, interesse: null,
             historico: [{ data: AGORA(), tipo: "cadastro", texto: "Lead importado da lista de Santo André" }],
         };
     }
     function defaultCfg(n) {
-        return { nome: "Corretora " + n, foto: "", telefone: "",
+        return { nome: "Corretora " + n, foto: "", telefone: "", imobiliaria: "",
             mensagem_padrao: "Olá! Tudo bem? Aqui é da imobiliária, vi seu interesse e queria te ajudar a encontrar o imóvel ideal. 🏡",
             tema: "claro", meta_diaria: 10, vendas_total: 0 };
     }
@@ -597,6 +632,9 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
         saveConfig(n, c) { try { localStorage.setItem(this.kCfg(n), JSON.stringify(c)); } catch (e) {} },
         getBackups(n) { try { return JSON.parse(localStorage.getItem(this.kBk(n)) || "[]"); } catch (e) { return []; } },
         saveBackups(n, b) { try { localStorage.setItem(this.kBk(n), JSON.stringify(b)); } catch (e) {} },
+        kPin: (n) => `bzp:${n}:pin`,
+        getPin(n) { try { return localStorage.getItem(this.kPin(n)) || null; } catch (e) { return null; } },
+        setPin(n, h) { try { if (h) localStorage.setItem(this.kPin(n), h); else localStorage.removeItem(this.kPin(n)); } catch (e) {} },
     };
 
     /* ------------------------------ Estatísticas --------------------------- */
@@ -604,11 +642,13 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
         const cont = {}; ORDEM.forEach(k => cont[k] = 0);
         const t = HOJE();
         let retornos_hoje = 0, atrasados = 0, vip = 0, favoritos = 0, sem_resposta = 0, aguardando = 0;
+        let interessados = 0, sem_interesse = 0, a_avaliar = 0;
         clientes.forEach(c => {
             const st = c.status || "novo_lead";
             if (cont[st] != null) cont[st]++;
             if (c.vip) vip++;
             if (c.favorito) favoritos++;
+            if (c.interesse === "sim") interessados++; else if (c.interesse === "nao") sem_interesse++; else a_avaliar++;
             if (c.proximo_retorno) {
                 if (c.proximo_retorno === t) retornos_hoje++;
                 else if (c.proximo_retorno < t && !["venda_concluida", "nao_interessado"].includes(st)) atrasados++;
@@ -620,7 +660,8 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
         const contatados = total - (cont.novo_lead || 0);
         const conversao = contatados > 0 ? Math.round((vendas / contatados) * 1000) / 10 : 0;
         return { total, por_status: cont, retornos_hoje, atrasados, vip, favoritos, sem_resposta,
-            aguardando_retorno: aguardando, visitas: cont.visita_agendada || 0, negociacoes: cont.negociacao || 0, vendas, conversao };
+            aguardando_retorno: aguardando, visitas: cont.visita_agendada || 0, negociacoes: cont.negociacao || 0, vendas, conversao,
+            interessados, sem_interesse, a_avaliar };
     }
 
     /* ---------------------------- "API" local ------------------------------ */
@@ -642,7 +683,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
                     faixa_preco: (body.faixa_preco || "").trim(), forma_pagamento: (body.forma_pagamento || "").trim(),
                     observacoes: (body.observacoes || "").trim(), origem_lead: (body.origem_lead || "Cadastro manual").trim(),
                     data_cadastro: HOJE(), ultimo_contato: null, proximo_retorno: body.proximo_retorno || null,
-                    status: ORDEM.includes(body.status) ? body.status : "novo_lead", vip: !!body.vip, favorito: !!body.favorito,
+                    status: ORDEM.includes(body.status) ? body.status : "novo_lead", vip: !!body.vip, favorito: !!body.favorito, interesse: body.interesse || null,
                     historico: [{ data: AGORA(), tipo: "cadastro", texto: "Cliente cadastrado" }] };
                 a.push(cli); save(a); return { ok: true, cliente: cli };
             }
@@ -683,9 +724,16 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
             }
             case "toggle_favorito": { const a = load(); const c = find(a, body.id); if (!c) return { ok: false }; c.favorito = !c.favorito; save(a); return { ok: true, cliente: c }; }
             case "toggle_vip": { const a = load(); const c = find(a, body.id); if (!c) return { ok: false }; c.vip = !c.vip; save(a); return { ok: true, cliente: c }; }
+            case "set_interesse": {
+                const a = load(); const c = find(a, body.id); if (!c) return { ok: false };
+                c.interesse = body.valor || null;
+                const txt = body.valor === "sim" ? "Marcado como INTERESSADO ✅" : body.valor === "nao" ? "Marcado como SEM interesse ❌" : "Interesse não avaliado";
+                c.historico.push({ data: AGORA(), tipo: "interesse", texto: txt });
+                save(a); return { ok: true, cliente: c };
+            }
             case "salvar_config": {
                 const cfg = DB.getConfig(n);
-                ["nome", "foto", "telefone", "mensagem_padrao", "tema"].forEach(k => { if (k in body) cfg[k] = typeof body[k] === "string" ? body[k].trim() : body[k]; });
+                ["nome", "foto", "telefone", "mensagem_padrao", "tema", "imobiliaria"].forEach(k => { if (k in body) cfg[k] = typeof body[k] === "string" ? body[k].trim() : body[k]; });
                 if ("meta_diaria" in body) cfg.meta_diaria = Math.max(1, parseInt(body.meta_diaria) || 10);
                 DB.saveConfig(n, cfg); return { ok: true, config: cfg };
             }
@@ -708,9 +756,10 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     }
 
     /* --------------------------------- Estado ------------------------------ */
-    const state = { corretora: null, config: null, clientes: [], stats: null, view: "dashboard", filtro: "todos", busca: "", ordenar: "destaque", bairro: "" };
+    const state = { corretora: null, config: null, clientes: [], stats: null, view: "dashboard", filtro: "todos", busca: "", ordenar: "destaque", bairro: "", interesseTab: "sim" };
     let ultimoExcluido = null; // para desfazer
     let deferredPrompt = null;
+    let pinBuf = [], pinCfg = null, pinKeyHandler = null, pinAttempts = 0;
 
     /* --------------------------------- Toast ------------------------------- */
     let toastTimer;
@@ -755,6 +804,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
             const cfg = DB.getConfig(n);
             const nm = $(`#wc-name-${n}`); if (nm) nm.textContent = cfg.nome || `Corretora ${n}`;
             const av = $(`#wc-avatar-${n}`); if (av && cfg.foto) av.innerHTML = cfg.foto.startsWith("http") ? `<img src="${esc(cfg.foto)}" alt="">` : esc(cfg.foto);
+            const go = $(`.broker-card[data-corretora="${n}"] .broker-card__go`); if (go) go.textContent = DB.getPin(n) ? "🔒 Entrar →" : "Entrar →";
         }
     }
     async function entrar(n) {
@@ -790,7 +840,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     const atualizarLocal = (cli) => { const i = state.clientes.findIndex(c => c.id === cli.id); if (i >= 0) state.clientes[i] = cli; };
 
     /* ============================== ROTEADOR ============================== */
-    const VIEWS = { dashboard: viewDashboard, clientes: viewClientes, "meu-dia": viewMeuDia, funil: viewFunil, mais: viewMais, agenda: viewAgenda, conquistas: viewConquistas, produtividade: viewProdutividade, backup: viewBackup };
+    const VIEWS = { dashboard: viewDashboard, clientes: viewClientes, "meu-dia": viewMeuDia, funil: viewFunil, mais: viewMais, agenda: viewAgenda, conquistas: viewConquistas, produtividade: viewProdutividade, backup: viewBackup, interesse: viewInteresse };
     function setView(name) { state.view = name; $$(".tabbar__btn").forEach(b => b.classList.toggle("is-active", b.dataset.view === name)); $("#view").innerHTML = (VIEWS[name] || viewDashboard)(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     function rerender() { $("#view").innerHTML = (VIEWS[state.view] || viewDashboard)(); }
 
@@ -824,7 +874,14 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
             <button class="stat" data-act="goto-filtro" data-filtro="favoritos"><div class="stat__ico" style="background:#FEF9C3">⭐</div><div class="stat__num">${s.favoritos}</div><div class="stat__lbl">Favoritos</div></button>
             <button class="stat" data-act="goto-filtro" data-filtro="nao_interessado"><div class="stat__ico" style="background:#FEE2E2">❌</div><div class="stat__num">${s.por_status.nao_interessado || 0}</div><div class="stat__lbl">Não interessados</div></button>
             <button class="stat" data-act="goto" data-view="produtividade"><div class="stat__ico" style="background:#EDE9FE">📈</div><div class="stat__num">${s.aguardando_retorno}</div><div class="stat__lbl">Aguardando retorno</div></button>
-        </div>`;
+        </div>
+        <div class="section-title">Interesse</div>
+        <div class="stat-grid">
+            <button class="stat" data-act="goto-int" data-tab="sim"><div class="stat__ico" style="background:#DCFCE7">✅</div><div class="stat__num" style="color:#16A34A">${s.interessados}</div><div class="stat__lbl">Interessados</div></button>
+            <button class="stat" data-act="goto-int" data-tab="nao"><div class="stat__ico" style="background:#FEE2E2">❌</div><div class="stat__num" style="color:#DC2626">${s.sem_interesse}</div><div class="stat__lbl">Sem interesse</div></button>
+            <button class="stat" data-act="goto-int" data-tab="avaliar"><div class="stat__ico" style="background:#FEF3C7">🕐</div><div class="stat__num" style="color:#D97706">${s.a_avaliar}</div><div class="stat__lbl">A avaliar</div></button>
+        </div>
+        <button class="btn btn--ghost" data-act="goto" data-view="interesse" style="margin-top:12px">📄 Relatórios de interesse (PDF)</button>`;
     }
 
     /* =============================== CLIENTES ============================= */
@@ -858,7 +915,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
                     <span class="client__badges">${c.favorito ? `<span class="badge-star">★</span>` : ""}${c.vip ? `<span class="badge-vip">VIP</span>` : ""}</span>
                 </div>
                 <div class="client__meta">${loc ? `<span>📍 ${esc(loc)}</span>` : ""}${c.telefone ? `<span>📱 ${esc(fmtTel(c.telefone))}</span>` : ""}</div>
-                <div class="client__foot">${statusPill(c.status)}${dueTag(c)}
+                <div class="client__foot">${statusPill(c.status)}${dueTag(c)}${c.interesse === "sim" ? '<span class="int-tag int-tag--sim">✅ Interesse</span>' : c.interesse === "nao" ? '<span class="int-tag int-tag--nao">❌ Sem interesse</span>' : ""}
                     <button class="client__wa" data-act="wa" data-id="${c.id}" aria-label="WhatsApp"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm5.8 14.07c-.24.68-1.42 1.3-1.95 1.34-.5.04-.5.4-3.16-.66-2.66-1.06-4.3-3.8-4.43-3.97-.13-.18-1.06-1.4-1.06-2.67 0-1.27.67-1.9.9-2.16.24-.26.52-.32.7-.32.17 0 .35 0 .5.01.16.01.38-.06.6.46.23.53.77 1.83.84 1.96.07.13.11.29.02.46-.09.18-.13.29-.26.44-.13.16-.28.35-.4.47-.13.13-.27.28-.12.54.15.26.66 1.09 1.42 1.77.98.87 1.8 1.14 2.06 1.27.26.13.4.11.55-.07.15-.17.63-.73.8-.98.16-.26.33-.21.55-.13.22.08 1.42.67 1.66.79.24.13.4.19.46.29.06.11.06.63-.18 1.31Z"/></svg></button>
                 </div>
             </div>
@@ -934,6 +991,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     function viewMais() {
         const item = (view, ico, bg, titulo, sub) => `<button class="menu-item" data-act="goto" data-view="${view}"><div class="menu-item__ico" style="background:${bg}">${ico}</div><div class="menu-item__txt"><div class="menu-item__title">${titulo}</div><div class="menu-item__sub">${sub}</div></div><span class="menu-item__arrow">›</span></button>`;
         return `<div class="menu-list">
+            ${item("interesse", "📄", "#DCFCE7", "Interesse & Relatórios", "Classifique e gere PDF por categoria")}
             ${item("agenda", "📅", "#DBEAFE", "Agenda", "Seus retornos e visitas por data")}
             ${item("conquistas", "🏆", "#FEF3C7", "Conquistas", "Metas e marcos das suas vendas")}
             ${item("produtividade", "📈", "#EDE9FE", "Produtividade", "Sua evolução e estatísticas")}
@@ -1012,6 +1070,13 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
                 <button class="act-btn" data-act="fav" data-id="${c.id}"><span class="act-btn__ico">${c.favorito ? "⭐" : "☆"}</span>Favorito</button>
                 <button class="act-btn" data-act="vip" data-id="${c.id}"><span class="act-btn__ico">${c.vip ? "🔥" : "➕"}</span>VIP</button>
             </div>
+            <div class="interesse-box">
+                <div class="interesse-box__q">Este cliente tem interesse?</div>
+                <div class="interesse-seg">
+                    <button class="int-btn int-sim ${c.interesse === "sim" ? "on" : ""}" data-act="set-interesse" data-id="${c.id}" data-valor="sim">✅ Tem interesse</button>
+                    <button class="int-btn int-nao ${c.interesse === "nao" ? "on" : ""}" data-act="set-interesse" data-id="${c.id}" data-valor="nao">❌ Sem interesse</button>
+                </div>
+            </div>
             <div class="btn-row" style="margin-bottom:16px">
                 <button class="btn btn--ghost" data-act="mudar-status" data-id="${c.id}">🔀 Etapa</button>
                 <button class="btn btn--ghost" data-act="lembrete" data-id="${c.id}">📅 Lembrete</button>
@@ -1050,7 +1115,12 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     async function aplicarDesfecho(id, key, status, emFila) {
         closeSheet();
         if (key === "nao_respondeu") { const r = await api("add_nota", { body: { id, texto: "Cliente não respondeu ao contato" } }); if (r.ok) atualizarLocal(r.cliente); toast("Anotado: não respondeu."); }
-        else if (status) { const r = await api("mudar_status", { body: { id, status } }); if (r.ok) atualizarLocal(r.cliente); if (status === "venda_concluida") toast("Parabéns pela venda! 🎉", "ok"); else toast("Status atualizado.", "ok"); }
+        else if (status) {
+            const r = await api("mudar_status", { body: { id, status } }); if (r.ok) atualizarLocal(r.cliente);
+            if (["em_atendimento", "visita_agendada", "negociacao", "venda_concluida"].includes(status)) await api("set_interesse", { body: { id, valor: "sim" } });
+            else if (status === "nao_interessado") await api("set_interesse", { body: { id, valor: "nao" } });
+            if (status === "venda_concluida") toast("Parabéns pela venda! 🎉", "ok"); else toast("Status atualizado.", "ok");
+        }
         await recarregar();
         if (emFila && filaAtendimento.length) { setTimeout(() => proximoDaFila(), 350); }
         else { filaAtendimento = []; rerender(); }
@@ -1116,17 +1186,19 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     function abrirPerfil() {
         const cfg = state.config;
         openSheet(`<div class="sheet__title">Meu perfil</div><div class="sheet__sub">Só você vê e usa estes dados.</div>
+            <div class="field"><label>Imobiliária (aparece no PDF)</label><input id="p-imob" value="${esc(cfg.imobiliaria || "")}" placeholder="Nome da sua imobiliária"></div>
             <div class="field"><label>Seu nome</label><input id="p-nome" value="${esc(cfg.nome)}"></div>
             <div class="field"><label>Foto (emoji ou link de imagem)</label><input id="p-foto" value="${esc(cfg.foto)}" placeholder="Cole um link ou escolha abaixo"><div class="avatar-picker">${AVATARES.map(a => `<button data-act="pick-avatar" data-emoji="${a}" class="${cfg.foto === a ? "is-active" : ""}">${a}</button>`).join("")}</div></div>
             <div class="field"><label>Seu telefone</label><input id="p-telefone" type="tel" value="${esc(cfg.telefone)}"></div>
             <div class="field"><label>Mensagem padrão do WhatsApp</label><textarea id="p-msg" placeholder="Mensagem enviada ao abrir o WhatsApp">${esc(cfg.mensagem_padrao)}</textarea></div>
             <div class="field"><label>Meta de contatos por dia</label><input id="p-meta" type="number" min="1" value="${esc(cfg.meta_diaria)}"></div>
             <div class="field"><label>Tema</label><div class="seg"><button data-act="tema" data-tema="claro" class="${cfg.tema !== "escuro" ? "is-active" : ""}">☀️ Claro</button><button data-act="tema" data-tema="escuro" class="${cfg.tema === "escuro" ? "is-active" : ""}">🌙 Escuro</button></div></div>
+            <div class="field" id="pin-section">${pinSectionInner()}</div>
             <button class="btn btn--primary" data-act="salvar-perfil">Salvar perfil</button>`, { onMount: (s) => { s.dataset.tema = cfg.tema || "claro"; } });
     }
     async function salvarPerfil() {
         const sheet = sheets[sheets.length - 1].sheet;
-        const body = { nome: $("#p-nome").value.trim() || `Corretora ${state.corretora}`, foto: $("#p-foto").value.trim(), telefone: $("#p-telefone").value, mensagem_padrao: $("#p-msg").value, meta_diaria: parseInt($("#p-meta").value) || 10, tema: sheet.dataset.tema || "claro" };
+        const body = { nome: $("#p-nome").value.trim() || `Corretora ${state.corretora}`, imobiliaria: $("#p-imob").value.trim(), foto: $("#p-foto").value.trim(), telefone: $("#p-telefone").value, mensagem_padrao: $("#p-msg").value, meta_diaria: parseInt($("#p-meta").value) || 10, tema: sheet.dataset.tema || "claro" };
         const r = await api("salvar_config", { body });
         if (r.ok) { state.config = r.config; aplicarTema(state.config.tema); atualizarTopo(); closeSheet(); rerender(); toast("Perfil salvo. 💙", "ok"); }
     }
@@ -1158,8 +1230,118 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
         reader.readAsText(file);
     }
 
+    /* ==================== INTERESSE & RELATÓRIOS (PDF) ================= */
+    function viewInteresse() {
+        const tab = state.interesseTab || "sim";
+        const grupos = { sim: [], nao: [], avaliar: [] };
+        state.clientes.forEach(c => { const k = c.interesse === "sim" ? "sim" : c.interesse === "nao" ? "nao" : "avaliar"; grupos[k].push(c); });
+        const lista = grupos[tab];
+        const chip = (k, l) => `<button class="chip ${tab === k ? "is-active" : ""}" data-act="int-tab" data-tab="${k}">${l}<span class="chip__n">${grupos[k].length}</span></button>`;
+        return `
+        <div class="hero-card">
+            <div class="hero-card__title">📄 Interesse & Relatórios</div>
+            <div style="font-size:13px;opacity:.92;line-height:1.5">Classifique cada cliente como interessado ou não e gere um relatório em PDF por categoria — pronto para imprimir ou enviar.</div>
+        </div>
+        <div class="chips" style="margin-top:14px">${chip("sim", "✅ Interessados")}${chip("nao", "❌ Sem interesse")}${chip("avaliar", "🕐 A avaliar")}</div>
+        <div class="btn-row" style="margin:4px 0 10px"><button class="btn btn--primary" data-act="pdf-lista" data-tab="${tab}">📄 Gerar PDF desta lista</button></div>
+        <button class="btn btn--ghost" data-act="pdf-geral" style="margin-bottom:14px">📊 PDF geral (todos os clientes)</button>
+        <div>${lista.length ? lista.map(clientCard).join("") : emptyState("🗂️", "Lista vazia", "Marque o interesse dos clientes na ficha de cada um para vê-los aqui.")}</div>`;
+    }
+    function relatorioClientes(tab) {
+        if (tab === "geral") return state.clientes.slice();
+        return state.clientes.filter(c => tab === "sim" ? c.interesse === "sim" : tab === "nao" ? c.interesse === "nao" : !(c.interesse === "sim" || c.interesse === "nao"));
+    }
+    const tituloRelatorio = (tab) => tab === "sim" ? "Clientes Interessados" : tab === "nao" ? "Clientes Sem Interesse" : tab === "avaliar" ? "Clientes a Avaliar" : "Relatório Geral de Clientes";
+    function gerarPDF(tab) {
+        const cfg = state.config, clientes = relatorioClientes(tab), titulo = tituloRelatorio(tab);
+        const dataStr = new Date().toLocaleString("pt-BR");
+        const R = computeStats(clientes);
+        const rows = clientes.map((c, i) => `<tr><td class="c">${i + 1}</td><td>${esc(c.nome)}</td><td>${esc(fmtTel(c.telefone))}</td><td>${esc(c.bairro || "—")}</td><td>${esc(FUNIL[c.status] ? FUNIL[c.status].label : "")}</td><td class="c">${esc(interesseLabel(c.interesse))}</td><td class="c">${c.proximo_retorno ? esc(c.proximo_retorno.split("-").reverse().join("/")) : "—"}</td><td>${esc(c.observacoes || "")}</td></tr>`).join("");
+        const css = "*{box-sizing:border-box}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;background:#eef1f5}.rep{max-width:960px;margin:0 auto;padding:26px;background:#fff}.rh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #2563EB;padding-bottom:14px;margin-bottom:16px}.rb{display:flex;gap:12px;align-items:center}.rl{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:26px}.ri{font-size:21px;font-weight:800}.rby{font-size:13px;color:#555;margin-top:2px}.rm{text-align:right;font-size:12px;color:#444;line-height:1.7}.rm b{color:#2563EB;font-size:15px}.rs{display:flex;gap:20px;flex-wrap:wrap;background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:11px 16px;font-size:13px;margin-bottom:16px}.rt{width:100%;border-collapse:collapse;font-size:12px}.rt th{background:#2563EB;color:#fff;text-align:left;padding:8px}.rt td{padding:7px 8px;border-bottom:1px solid #E5E7EB;vertical-align:top}.rt tr:nth-child(even) td{background:#F9FAFB}.rt .c{text-align:center}.rf{margin-top:18px;text-align:center;font-size:11px;color:#999}.ra{position:fixed;top:12px;right:12px}.ra button{background:#2563EB;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px rgba(37,99,235,.35)}@media print{body{background:#fff}.np{display:none!important}.rep{max-width:none;padding:0}thead{display:table-header-group}tr{page-break-inside:avoid}.rt th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.rl,.rs{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{margin:13mm}}";
+        const doc = "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + esc(titulo) + "</title><style>" + css + "</style></head><body><div class=\"rep\">" +
+            "<div class=\"rh\"><div class=\"rb\"><div class=\"rl\">🏡</div><div><div class=\"ri\">" + esc(cfg.imobiliaria || "Relatório de Clientes") + "</div><div class=\"rby\">Corretora: " + esc(cfg.nome || "") + "</div></div></div>" +
+            "<div class=\"rm\"><div><b>" + esc(titulo) + "</b></div><div>" + esc(dataStr) + "</div><div>Total: " + clientes.length + " cliente(s)</div></div></div>" +
+            "<div class=\"rs\"><span>✅ Interessados: <b>" + R.interessados + "</b></span><span>❌ Sem interesse: <b>" + R.sem_interesse + "</b></span><span>🕐 A avaliar: <b>" + R.a_avaliar + "</b></span><span>🤝 Negociações: <b>" + R.negociacoes + "</b></span><span>🏆 Vendas: <b>" + R.vendas + "</b></span></div>" +
+            "<table class=\"rt\"><thead><tr><th class=\"c\">#</th><th>Nome</th><th>Telefone</th><th>Bairro</th><th>Etapa do funil</th><th class=\"c\">Interesse</th><th class=\"c\">Retorno</th><th>Observações</th></tr></thead><tbody>" +
+            (rows || "<tr><td colspan=\"8\" class=\"c\">Nenhum cliente nesta categoria.</td></tr>") + "</tbody></table>" +
+            "<div class=\"rf\">Gerado por Bazinha Prime • " + esc(dataStr) + "</div></div>" +
+            "<div class=\"ra np\"><button onclick=\"window.print()\">🖨️ Imprimir / Salvar PDF</button></div>" +
+            "<scr" + "ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},400);};<\/scr" + "ipt></body></html>";
+        const win = window.open("", "_blank");
+        if (win) { win.document.open(); win.document.write(doc); win.document.close(); win.focus(); }
+        else { imprimirEmIframe(doc); }
+        toast("Relatório aberto. Escolha 'Salvar como PDF'. 📄", "ok");
+    }
+    function imprimirEmIframe(htmlDoc) {
+        const ifr = document.createElement("iframe");
+        ifr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+        document.body.appendChild(ifr);
+        const d = ifr.contentWindow.document; d.open(); d.write(htmlDoc); d.close();
+        setTimeout(() => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) {} setTimeout(() => ifr.remove(), 1500); }, 500);
+    }
+
+    /* ------------------------------- PIN -------------------------------- */
+    function seedDefaultPins() {
+        try {
+            if (localStorage.getItem("bzp:pins_seeded") === "1") return;
+            for (const n of [1, 2, 3, 4]) { if (!localStorage.getItem(DB.kPin(n))) localStorage.setItem(DB.kPin(n), hashPin(n, DEFAULT_PINS[n])); }
+            localStorage.setItem("bzp:pins_seeded", "1");
+        } catch (e) {}
+    }
+    function hashPin(n, pin) { const data = `bzp-salt-${n}:${pin}`; let h = 5381; for (let i = 0; i < data.length; i++) h = ((h * 33) ^ data.charCodeAt(i)) >>> 0; return "p" + h.toString(16); }
+    const PINLOCK_HTML = `
+        <button class="pinlock__back pin-back" data-act="pin-back">← Voltar</button>
+        <div class="pin-title"></div><div class="pin-sub"></div>
+        <div class="pin-dots">${'<span class="pin-dot"></span>'.repeat(4)}</div>
+        <div class="pin-err"></div>
+        <div class="pin-pad">
+            ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(nn => `<button class="pin-key" data-act="pin-key" data-key="${nn}">${nn}</button>`).join("")}
+            <button class="pin-key blank"></button>
+            <button class="pin-key" data-act="pin-key" data-key="0">0</button>
+            <button class="pin-key" data-act="pin-del">⌫</button>
+        </div>`;
+    function promptPin(cfg) {
+        pinCfg = cfg; pinBuf = [];
+        let el = $("#pinlock");
+        if (!el) {
+            el = document.createElement("div"); el.className = "pinlock"; el.id = "pinlock"; el.innerHTML = PINLOCK_HTML;
+            $("#overlay-root").appendChild(el); requestAnimationFrame(() => el.classList.add("show"));
+            pinKeyHandler = (e) => { if (e.key >= "0" && e.key <= "9") pinPush(e.key); else if (e.key === "Backspace") pinPop(); else if (e.key === "Escape") { if (pinCfg && pinCfg.onBack) pinCfg.onBack(); } };
+            window.addEventListener("keydown", pinKeyHandler);
+        }
+        el.querySelector(".pin-title").textContent = cfg.title || "";
+        el.querySelector(".pin-sub").textContent = cfg.subtitle || "";
+        el.querySelector(".pin-back").style.display = cfg.showBack ? "" : "none";
+        el.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("on"));
+        const err = el.querySelector(".pin-err"); if (err) err.textContent = "";
+    }
+    function closePinLock() { const el = $("#pinlock"); if (el) { el.classList.remove("show"); setTimeout(() => el.remove(), 250); } if (pinKeyHandler) { window.removeEventListener("keydown", pinKeyHandler); pinKeyHandler = null; } pinBuf = []; pinCfg = null; }
+    function renderPinDots() { $$("#pinlock .pin-dot").forEach((d, i) => d.classList.toggle("on", i < pinBuf.length)); }
+    function pinPush(d) { if (!$("#pinlock") || pinBuf.length >= 4) return; const err = $("#pinlock .pin-err"); if (err && pinBuf.length === 0) err.textContent = ""; pinBuf.push(d); renderPinDots(); if (pinBuf.length === 4) { const pin = pinBuf.join(""); const cb = pinCfg && pinCfg.onDone; setTimeout(() => { if (cb) cb(pin); }, 140); } }
+    function pinPop() { if (pinBuf.length) { pinBuf.pop(); renderPinDots(); } }
+    function pinError(msg) { const el = $("#pinlock"); if (!el) return; pinBuf = []; el.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("on")); const box = el.querySelector(".pin-dots"); box.classList.remove("shake"); void box.offsetWidth; box.classList.add("shake"); const err = el.querySelector(".pin-err"); if (err) err.textContent = msg; }
+    function entrarComPin(n) {
+        const h = DB.getPin(n);
+        if (!h) { entrar(n); return; }
+        pinAttempts = 0;
+        promptPin({ title: DB.getConfig(n).nome || ("Corretora " + n), subtitle: "Digite seu PIN de acesso", showBack: true, onBack: closePinLock,
+            onDone: (pin) => { if (hashPin(n, pin) === h) { closePinLock(); entrar(n); } else { pinAttempts++; pinError(pinAttempts >= 3 ? "PIN incorreto. Sem o código não dá para abrir esta área." : "PIN incorreto. Tente de novo."); } } });
+    }
+    function fluxoDefinirPin() {
+        const step1 = () => promptPin({ title: DB.getPin(state.corretora) ? "Alterar PIN" : "Criar PIN", subtitle: "Escolha um código de 4 dígitos", showBack: true, onBack: closePinLock, onDone: (p1) => step2(p1) });
+        const step2 = (p1) => promptPin({ title: "Confirme o PIN", subtitle: "Digite os 4 dígitos de novo", showBack: true, onBack: step1, onDone: (p2) => { if (p1 !== p2) { pinError("Os códigos não são iguais. Tente de novo."); return; } DB.setPin(state.corretora, hashPin(state.corretora, p1)); closePinLock(); toast("PIN salvo. Sua área está protegida. 🔒", "ok"); const ps = $("#pin-section"); if (ps) ps.innerHTML = pinSectionInner(); } });
+        step1();
+    }
+    function removerPin() { confirmar("Remover PIN?", "Sua área ficará sem código — qualquer pessoa neste aparelho poderá abri-la.", "Remover", () => { DB.setPin(state.corretora, null); closeSheet(); toast("PIN removido."); const ps = $("#pin-section"); if (ps) ps.innerHTML = pinSectionInner(); }, true); }
+    function pinSectionInner() {
+        const has = !!DB.getPin(state.corretora);
+        return `<label>Segurança</label>${has
+            ? `<div><span class="pin-badge">🔒 PIN de acesso ativo</span></div><div class="btn-row" style="margin-top:10px"><button class="btn btn--ghost" data-act="alterar-pin">Alterar PIN</button><button class="btn btn--danger" data-act="remover-pin">Remover</button></div>`
+            : `<button class="btn btn--ghost" data-act="criar-pin">🔒 Criar PIN de acesso</button><p class="hint" style="text-align:left;margin-top:8px">Sem PIN, quem tocar no seu cartão entra direto. Com PIN, só você abre sua área neste aparelho.</p>`}`;
+    }
+
     /* ============================ EVENTOS ============================= */
-    document.addEventListener("click", (e) => { const bc = e.target.closest(".broker-card"); if (bc) entrar(parseInt(bc.dataset.corretora)); });
+    document.addEventListener("click", (e) => { const bc = e.target.closest(".broker-card"); if (bc) entrarComPin(parseInt(bc.dataset.corretora)); });
     $("#tabbar").addEventListener("click", (e) => { const b = e.target.closest(".tabbar__btn"); if (b) setView(b.dataset.view); });
     $("#fab").addEventListener("click", () => abrirFormCliente(null));
     $("#btn-switch").addEventListener("click", () => confirmarSair());
@@ -1211,7 +1393,28 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
             case "exportar": exportar(); break;
             case "importar": importar(); break;
             case "restaurar": confirmarRestaurar(t.dataset.arq); break;
+            case "goto-int": state.interesseTab = t.dataset.tab; setView("interesse"); break;
+            case "int-tab": state.interesseTab = t.dataset.tab; rerender(); break;
+            case "pdf-lista": gerarPDF(t.dataset.tab); break;
+            case "pdf-geral": gerarPDF("geral"); break;
+            case "set-interesse": {
+                const novo = t.classList.contains("on") ? "" : t.dataset.valor;
+                const r = await api("set_interesse", { body: { id, valor: novo } });
+                if (r.ok) {
+                    atualizarLocal(r.cliente);
+                    const seg = t.closest(".interesse-seg");
+                    if (seg) { seg.querySelectorAll(".int-btn").forEach(b => b.classList.remove("on")); if (novo) t.classList.add("on"); }
+                    await recarregar();
+                    toast(novo === "sim" ? "Marcado como interessado ✅" : novo === "nao" ? "Marcado como sem interesse ❌" : "Classificação removida", "ok");
+                }
+                break;
+            }
             case "instalar": instalarPWA(); break;
+            case "criar-pin": case "alterar-pin": fluxoDefinirPin(); break;
+            case "remover-pin": removerPin(); break;
+            case "pin-key": pinPush(t.dataset.key); break;
+            case "pin-del": pinPop(); break;
+            case "pin-back": if (pinCfg && pinCfg.onBack) pinCfg.onBack(); else closePinLock(); break;
             case "sair": confirmarSair(); break;
         }
     });
@@ -1219,7 +1422,7 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
     /* ---------------------------- Confirmações --------------------------- */
     function confirmar(titulo, texto, textoBtn, onSim, perigo = true) {
         openSheet(`<div class="sheet__title">${esc(titulo)}</div><div class="sheet__sub">${esc(texto)}</div><div class="btn-row"><button class="btn btn--ghost" data-act="cancelar-conf">Cancelar</button><button class="btn ${perigo ? "btn--danger" : "btn--primary"}" id="btn-confirmar">${esc(textoBtn)}</button></div>`,
-            { onMount: (s) => { s.querySelector("#btn-confirmar").addEventListener("click", () => onSim()); s.querySelector("[data-act='cancelar-conf']").addEventListener("click", () => closeSheet()); } });
+            { onMount: (s) => { const y = s.querySelector("#btn-confirmar"); const c = s.querySelector("[data-act='cancelar-conf']"); if (y) y.addEventListener("click", () => onSim()); if (c) c.addEventListener("click", () => closeSheet()); } });
     }
     function confirmarExcluir(id) {
         const c = state.clientes.find(x => x.id === id);
@@ -1257,9 +1460,10 @@ const ICONS = { i192: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAY
 
     /* ------------------------------ Início ------------------------------ */
     $("#welcome-frase").textContent = FRASES[Math.floor(Math.random() * FRASES.length)];
+    seedDefaultPins();
     setupPWA();
     loadWelcomeNames();
-    try { const salva = parseInt(localStorage.getItem("bz_corretora")); if ([1, 2, 3, 4].includes(salva)) entrar(salva); } catch (e) {}
+    try { const salva = parseInt(localStorage.getItem("bz_corretora")); if ([1, 2, 3, 4].includes(salva)) entrarComPin(salva); } catch (e) {}
 })();
 </script>
 </body>
